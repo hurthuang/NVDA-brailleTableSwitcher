@@ -25,7 +25,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     @script(
         description="循環切換輸出點字表 (zh-tw / UEB G1 / UEB G2)",
         category=addonHandler.getCodeAddon().manifest["summary"],
-        gesture="kb:NVDA+alt+t",
+        gesture="kb:NVDA+alt+b",
     )
     def script_cycleBrailleTable(self, gesture):
         currentTable = braille.handler.table
