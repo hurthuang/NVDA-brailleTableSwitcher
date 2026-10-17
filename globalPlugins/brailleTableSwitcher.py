@@ -10,6 +10,7 @@ import config
 import globalPluginHandler
 import ui
 import gui
+from gui.settingsDialogs import SettingsPanel, NVDASettingsDialog
 import wx
 import threading
 import urllib.request
@@ -23,46 +24,130 @@ addonHandler.initTranslation()
 
 GITHUB_LATEST_API = "https://api.github.com/repos/hurthuang/NVDA-brailleTableSwitcher/releases/latest"
 
-# 輸出點字表清單（NVDA+Alt+B 循環切換）
+# 推薦的輸出點字表（設定面板預設列出；NVDA+Alt+B 在勾選的表間循環）
 OUTPUT_TABLES = [
-    ("zh-tw.ctb",        "注音點字 (zh-tw)"),
-    ("zh-tw-ueb-g1.ctb", "注音點字 + UEB 一級"),
-    ("zh-tw-ueb-g2.ctb", "注音點字 + UEB 二級"),
+    ("zh-tw.ctb",          "注音點字 (zh-tw)"),
+    ("zh-tw-ueb-g1.ctb",   "注音點字 + UEB 一級"),
+    ("zh-tw-ueb-g2.ctb",   "注音點字 + UEB 二級"),
+    ("zh-tw-suodian.ctb",  "縮點閱讀"),
 ]
 
-# 輸入點字表清單（NVDA+Alt+I 循環切換）
+# 推薦的輸入點字表（NVDA+Alt+I 在勾選的表間循環）
 INPUT_TABLES = [
     ("en-us-comp8-ext.utb", "英文電腦點字 (en-us-comp8)"),
     ("en-ueb-g1.ctb",   "UEB 一級輸入 (en-ueb-g1)"),
     ("en-ueb-g2.ctb",   "UEB 二級輸入 (en-ueb-g2)"),
 ]
 
-
-def _friendlyOutputName(tableObj):
-    """從輸出表清單查友善名稱，找不到則回退到 displayName。"""
-    if tableObj is None:
-        return "（未設定）"
-    for tid, name in OUTPUT_TABLES:
-        try:
-            if tableObj is getBRLtable(tid):
-                return name
-        except Exception:
-            pass
-    return getattr(tableObj, "displayName", str(tableObj))
+CONF_SECTION = "brailleTableSwitcher"
+# 預設勾選：升級前的三個輸出表與三個輸入表，縮點不勾
+config.conf.spec[CONF_SECTION] = {
+    "outputTables": 'string_list(default=list("zh-tw.ctb", "zh-tw-ueb-g1.ctb", "zh-tw-ueb-g2.ctb"))',
+    "inputTables": 'string_list(default=list("en-us-comp8-ext.utb", "en-ueb-g1.ctb", "en-ueb-g2.ctb"))',
+    "showAllTables": "boolean(default=False)",
+}
 
 
-def _friendlyInputName(tableId):
-    """從輸入表清單查友善名稱，找不到則直接傳回 tableId。"""
+def _tableName(tableId):
+    """推薦清單裡的友善名稱，其他表用 NVDA 的 displayName。"""
     if not tableId:
         return "（未設定）"
-    for tid, name in INPUT_TABLES:
+    for tid, name in OUTPUT_TABLES + INPUT_TABLES:
         if tableId == tid:
             return name
-    # 回退：嘗試從 NVDA 表資料庫取 displayName
     try:
         return getBRLtable(tableId).displayName
     except Exception:
         return tableId
+
+
+def _friendlyOutputName(tableObj):
+    fileName = getattr(tableObj, "fileName", None)
+    return _tableName(fileName) if fileName else ("（未設定）" if tableObj is None else str(tableObj))
+
+
+def _friendlyInputName(tableId):
+    return _tableName(tableId)
+
+
+def _cycleList(kind):
+    """設定中勾選、而且 NVDA 找得到的表；全部失效時退回推薦清單的預設。"""
+    key, defaults = ("outputTables", OUTPUT_TABLES[:3]) if kind == "output" else ("inputTables", INPUT_TABLES)
+    ids = []
+    for tid in config.conf[CONF_SECTION][key]:
+        try:
+            getBRLtable(tid)
+            ids.append(tid)
+        except LookupError:
+            log.warning(f"brailleTableSwitcher: table not found, skipped: {tid}")
+    return ids or [tid for tid, _ in defaults]
+
+
+def _candidates(kind, showAll, checked):
+    """設定面板要列出的表：推薦清單、已勾選的其他表；showAll 時再加上 NVDA 所有同類表。"""
+    from brailleTables import listTables
+    rec = OUTPUT_TABLES if kind == "output" else INPUT_TABLES
+    ids = [tid for tid, _ in rec]
+    extra = []
+    for t in sorted(listTables(), key=lambda t: t.displayName):
+        if t.fileName in ids or not (t.output if kind == "output" else t.input):
+            continue
+        if showAll or t.fileName in checked:
+            extra.append(t.fileName)
+    return ids + extra
+
+
+class BrailleTableSwitcherPanel(SettingsPanel):
+    title = "點字表切換"
+
+    def makeSettings(self, settingsSizer):
+        from gui import guiHelper, nvdaControls
+        helper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+        conf = config.conf[CONF_SECTION]
+        self._checked = {"output": list(conf["outputTables"]), "input": list(conf["inputTables"])}
+        self.showAllCheck = helper.addItem(wx.CheckBox(self, label="顯示所有點字表(&A)"))
+        self.showAllCheck.SetValue(conf["showAllTables"])
+        self.showAllCheck.Bind(wx.EVT_CHECKBOX, self._onShowAll)
+        self.lists = {
+            "output": helper.addLabeledControl(
+                "NVDA+Alt+B 輸出點字表循環(&O)：", nvdaControls.CustomCheckListBox, choices=[]),
+            "input": helper.addLabeledControl(
+                "NVDA+Alt+I 輸入點字表循環(&I)：", nvdaControls.CustomCheckListBox, choices=[]),
+        }
+        self._ids = {}
+        for kind in self.lists:
+            self._fill(kind)
+
+    def _fill(self, kind):
+        lst = self.lists[kind]
+        ids = _candidates(kind, self.showAllCheck.GetValue(), self._checked[kind])
+        self._ids[kind] = ids
+        lst.SetItems([_tableName(tid) for tid in ids])
+        lst.SetCheckedItems([i for i, tid in enumerate(ids) if tid in self._checked[kind]])
+        if ids:
+            lst.SetSelection(0)
+
+    def _currentChecked(self, kind):
+        return [self._ids[kind][i] for i in self.lists[kind].GetCheckedItems()]
+
+    def _onShowAll(self, evt):
+        for kind in self.lists:
+            self._checked[kind] = self._currentChecked(kind)
+            self._fill(kind)
+
+    def isValid(self):
+        for kind, label in (("output", "輸出"), ("input", "輸入")):
+            if not self._currentChecked(kind):
+                gui.messageBox(f"{label}點字表至少要勾選一個。", "點字表切換", wx.OK | wx.ICON_ERROR, self)
+                self.lists[kind].SetFocus()
+                return False
+        return super().isValid()
+
+    def onSave(self):
+        conf = config.conf[CONF_SECTION]
+        conf["outputTables"] = self._currentChecked("output")
+        conf["inputTables"] = self._currentChecked("input")
+        conf["showAllTables"] = self.showAllCheck.GetValue()
 
 
 # ── 檢查更新 ──────────────────────────────────────────────
@@ -156,40 +241,46 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         wx.CallLater(5000, lambda: threading.Thread(
             target=_check_update_worker, kwargs={"silent": True}, daemon=True
         ).start())
+        NVDASettingsDialog.categoryClasses.append(BrailleTableSwitcherPanel)
+
+    def terminate(self):
+        try:
+            NVDASettingsDialog.categoryClasses.remove(BrailleTableSwitcherPanel)
+        except ValueError:
+            pass
+        super().terminate()
+
+    # ── 開啟設定 (NVDA+Alt+P) ────────────────────────────────────────────
+    @script(
+        description="開啟點字表切換設定（選擇循環的點字表）",
+        category=addonHandler.getCodeAddon().manifest["summary"],
+        gesture="kb:NVDA+alt+p",
+    )
+    def script_openSettings(self, gesture):
+        wx.CallAfter(gui.mainFrame.popupSettingsDialog, NVDASettingsDialog, BrailleTableSwitcherPanel)
 
     # ── 輸出點字表切換 (NVDA+Alt+B) ──────────────────────────────────────
     @script(
-        description="循環切換輸出點字表 (zh-tw / UEB G1 / UEB G2)",
+        description="在勾選的輸出點字表間循環切換",
         category=addonHandler.getCodeAddon().manifest["summary"],
         gesture="kb:NVDA+alt+b",
     )
     def script_cycleBrailleTable(self, gesture):
-        currentTable = braille.handler.table
-        ids = [t[0] for t in OUTPUT_TABLES]
-
-        currentId = None
-        for tid, _ in OUTPUT_TABLES:
-            try:
-                if currentTable is getBRLtable(tid):
-                    currentId = tid
-                    break
-            except Exception:
-                pass
-
+        ids = _cycleList("output")
+        currentId = getattr(braille.handler.table, "fileName", None)
         idx = ids.index(currentId) if currentId in ids else -1
-        nextIdx = (idx + 1) % len(OUTPUT_TABLES)
-        nextId, nextName = OUTPUT_TABLES[nextIdx]
+        nextId = ids[(idx + 1) % len(ids)]
 
         try:
             braille.handler.table = getBRLtable(nextId)
-            ui.message(nextName)
+            ui.message(_tableName(nextId))
         except Exception:
             log.error(f"brailleTableSwitcher: failed to switch output table to {nextId}", exc_info=True)
             playErrorSound()
 
     # ── 輸入點字表切換 (NVDA+Alt+I) ──────────────────────────────────────
     @script(
-        description="循環切換輸入點字表 (en-us-comp8 / UEB G1 / UEB G2)",
+        description="在勾選的輸入點字表間循環切換",
         category=addonHandler.getCodeAddon().manifest["summary"],
         gesture="kb:NVDA+alt+i",
     )
@@ -199,17 +290,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         from brailleTables import RENAMED_TABLES
         currentId = config.conf["braille"]["inputTable"]
         currentId = RENAMED_TABLES.get(currentId, currentId)
-        ids = [t[0] for t in INPUT_TABLES]
-
+        ids = _cycleList("input")
         idx = ids.index(currentId) if currentId in ids else -1
-        nextIdx = (idx + 1) % len(INPUT_TABLES)
-        nextId, nextName = INPUT_TABLES[nextIdx]
+        nextId = ids[(idx + 1) % len(ids)]
 
         try:
             config.conf["braille"]["inputTable"] = nextId
             # 通知 brailleInput 模組重新讀取設定
             brailleInput.handler.table = getBRLtable(nextId)
-            ui.message(nextName)
+            ui.message(_tableName(nextId))
         except Exception:
             log.error(f"brailleTableSwitcher: failed to switch input table to {nextId}", exc_info=True)
             playErrorSound()
