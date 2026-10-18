@@ -42,12 +42,12 @@ NVDA addon，讓使用者透過快速鍵在台灣中文點字表與 UEB 點字�
 
 - 原表以 7、8 點區分的代名詞：他、你、她、妳保留聲母上的記號；牠、祂的記號在韻母上，會與聲調混淆，維持原寫法。
 - 縮點閱讀是閱讀用的點字表；點字輸入的縮點模式請見 [6d-IME](https://github.com/hurthuang/6d-IME)。
-- 構想來源：[注音點字改良思考](https://class.kh.edu.tw/19061/bulletin/msg_view/197)（2018）。
+- 構想來源：[注音點字改良思考](https://class.kh.edu.tw/19061/bulletin/msg_view/197)（2018）；輸入的做法見 [縮點輸入法](https://class.kh.edu.tw/19061/bulletin/msg_view/497)（2020）。
 
 ## 安裝需求
 
 - NVDA 2021.1 或更新版本
-- 測試版本：NVDA 2025.3
+- 測試版本：NVDA 2026.2
 
 ## 安裝方式
 
