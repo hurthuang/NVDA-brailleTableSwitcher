@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""從 NVDA 內建的 zh-tw.ctb 產生縮點閱讀表 brailleTables/zh-tw-suodian.ctb。
+"""從 NVDA 內建的 zh-tw.ctb 產生縮點閱讀表 brailleTables/zh-tw-short.ctb。
 
 縮點閱讀規則（聲母、韻母點位不變；兩者點型不重疊，字界由韻母判斷）：
   一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；
@@ -7,14 +7,14 @@
 原表用 7／8 點區分的代名詞：他你她妳的聲母記號保留；牠祂的記號在韻母上，
 會跟聲調撞在一起，維持原表寫法（含調號方）。度量衡合字（瓩、兙等）也維持原樣。
 
-用法：python tools/build_suodian_ctb.py [zh-tw.ctb 路徑]
+用法：python tools/build_short_ctb.py [zh-tw.ctb 路徑]
 """
 import os
 import re
 import sys
 
 SRC_DEFAULT = r"C:\Program Files\NVDA\louis\tables\zh-tw.ctb"
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "brailleTables", "zh-tw-suodian.ctb")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "brailleTables", "zh-tw-short.ctb")
 
 INITIALS = {
 	"135", "1234", "134", "12345",  # ㄅㄆㄇㄈ
@@ -63,9 +63,9 @@ def main():
 	for ln in lines:
 		toks = ln.split(" ")
 		if ln.startswith("#-display-name:"):
-			ln = "#-display-name: Taiwanese bopomofo braille, Suodian (tones in dots 7-8)"
+			ln = "#-display-name: Taiwanese bopomofo braille, short form (tones in dots 7-8)"
 		elif ln.startswith("#-name:"):
-			ln = "#-name: Taiwan zhuyin suodian"
+			ln = "#-name: Taiwan bopomofo short"
 		elif CJK.search(ln) and toks[0] in ("letter", "word", "begword") and len(toks) >= 3:
 			new = convert(toks[2])
 			if new is None:
@@ -82,7 +82,7 @@ def main():
 				ln, changed = f"{head} @{new}", changed + 1
 		out.append(ln)
 	header = (
-		"# 縮點閱讀表：由 NVDA-brailleTableSwitcher/tools/build_suodian_ctb.py 從 zh-tw.ctb 產生，不要手動修改\n"
+		"# 縮點閱讀表：由 NVDA-brailleTableSwitcher/tools/build_short_ctb.py 從 zh-tw.ctb 產生，不要手動修改\n"
 		"# 一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；輕聲聲母加點8（無聲母不標）\n"
 	)
 	with open(OUT, "w", encoding="utf-8", newline="\n") as f:

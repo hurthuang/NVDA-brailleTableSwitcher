@@ -29,7 +29,7 @@ OUTPUT_TABLES = [
     ("zh-tw.ctb",          "注音點字 (zh-tw)"),
     ("zh-tw-ueb-g1.ctb",   "注音點字 + UEB 一級"),
     ("zh-tw-ueb-g2.ctb",   "注音點字 + UEB 二級"),
-    ("zh-tw-suodian.ctb",  "縮點閱讀"),
+    ("zh-tw-short.ctb",  "縮點閱讀"),
 ]
 
 # 推薦的輸入點字表（NVDA+Alt+I 在勾選的表間循環）

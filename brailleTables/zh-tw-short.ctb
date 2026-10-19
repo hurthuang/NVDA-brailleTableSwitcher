@@ -1,4 +1,4 @@
-# 縮點閱讀表：由 NVDA-brailleTableSwitcher/tools/build_suodian_ctb.py 從 zh-tw.ctb 產生，不要手動修改
+# 縮點閱讀表：由 NVDA-brailleTableSwitcher/tools/build_short_ctb.py 從 zh-tw.ctb 產生，不要手動修改
 # 一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；輕聲聲母加點8（無聲母不標）
 # Taiwanese bopomofo braille
 #
@@ -21,9 +21,9 @@
 #  License along with liblouis. If not, see
 #  <http://www.gnu.org/licenses/>.
 
-#-name: Taiwan zhuyin suodian
+#-name: Taiwan bopomofo short
 #-index-name: Mandarin, Taiwan, bopomofo
-#-display-name: Taiwanese bopomofo braille, Suodian (tones in dots 7-8)
+#-display-name: Taiwanese bopomofo braille, short form (tones in dots 7-8)
 
 #+language: cmn
 #+region: cmn-TW
