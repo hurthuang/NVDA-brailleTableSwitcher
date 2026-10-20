@@ -2,8 +2,9 @@
 """從 NVDA 內建的 zh-tw.ctb 產生縮點閱讀表 brailleTables/zh-tw-short.ctb。
 
 縮點閱讀規則（聲母、韻母點位不變；兩者點型不重疊，字界由韻母判斷）：
-  一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；
-  輕聲聲母加點8，沒有聲母的輕聲不標（與一聲同形）。
+  一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；輕聲聲母加點8。
+  沒有聲母的一聲、輕聲字不縮，保留調號方：只剩一個韻母方時會和標點同形（因 ⠹ 與「？」⠹⠀、
+  啊啊 與「》」⠜⠜），一聲和輕聲也分不出來（呀、壓）。
 原表用 7／8 點區分的代名詞：他你她妳的聲母記號保留；牠祂的記號在韻母上，
 會跟聲調撞在一起，維持原表寫法（含調號方）。度量衡合字（瓩、兙等）也維持原樣。
 
@@ -46,6 +47,10 @@ def convert(dots):
 		if j + 1 >= len(cells) or cells[j] not in FINALS or cells[j + 1] not in TONES:
 			return None
 		fin, tone = cells[j], TONES[cells[j + 1]]
+		if not ini and tone in (1, 5):
+			out += [fin, cells[j + 1]]   # 沒有聲母的一聲、輕聲：不縮
+			i = j + 2
+			continue
 		if tone == 5 and ini and "8" not in ini:
 			ini += "8"
 		elif tone in (2, 3, 4):
@@ -83,7 +88,7 @@ def main():
 		out.append(ln)
 	header = (
 		"# 縮點閱讀表：由 NVDA-brailleTableSwitcher/tools/build_short_ctb.py 從 zh-tw.ctb 產生，不要手動修改\n"
-		"# 一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；輕聲聲母加點8（無聲母不標）\n"
+		"# 一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；輕聲聲母加點8；沒有聲母的一聲、輕聲字不縮\n"
 	)
 	with open(OUT, "w", encoding="utf-8", newline="\n") as f:
 		f.write(header + "\n".join(out))
