@@ -8,6 +8,7 @@ import braille
 import brailleInput
 import config
 import globalPluginHandler
+import louisHelper
 import ui
 import gui
 from gui.settingsDialogs import SettingsPanel, NVDASettingsDialog
@@ -233,10 +234,76 @@ def _download_and_install_worker(asset_url):
     wx.CallAfter(os.startfile, tmp_path)
 
 
+# ── 縮點閱讀：游標所在的國字顯示完整注音點字 ─────────────────────────────
+# NVDA 的「游標所在字詞展開成電腦點字」（liblouis compbrlAtCursor）對中文沒有作用：
+# 它只會展開成電腦點字，而且中文沒有空格分詞。這裡改成：輸出表是縮點閱讀、游標在國字上、
+# 那個設定有開時，把游標所在的那一個字換成 zh-tw.ctb 的寫法（帶調號方）。
+# 好處：逐字移動時能確認聲調；游標的第 7、8 點也不會和聲調混在一起。
+SHORT_TABLE = "zh-tw-short.ctb"
+FULL_TABLE = "zh-tw.ctb"
+
+
+def _charSpan(rawToBraillePos, brailleLen, index):
+    """原文第 index 個字對應的點字範圍 [start, end)，以及同一組（共用點字）的原文範圍。"""
+    start = rawToBraillePos[index]
+    first = index
+    while first > 0 and rawToBraillePos[first - 1] == start:
+        first -= 1
+    last = index
+    while last + 1 < len(rawToBraillePos) and rawToBraillePos[last + 1] == start:
+        last += 1
+    end = rawToBraillePos[last + 1] if last + 1 < len(rawToBraillePos) else brailleLen
+    return start, end, first, last
+
+
+def spliceCursorChar(short, full, cursorPos):
+    """把 full（zh-tw）裡游標所在字的點字換進 short（zh-tw-short），並調整位置對照。
+    short、full 都是 louisHelper.translate 的回傳值 (cells, brailleToRawPos, rawToBraillePos, brailleCursorPos)。
+    兩邊對不上時傳回 None。"""
+    cellsS, b2rS, r2bS, _curS = short
+    cellsF, b2rF, r2bF, curF = full
+    if len(r2bS) != len(r2bF) or not 0 <= cursorPos < len(r2bS):
+        return None
+    sS, eS, firstS, lastS = _charSpan(r2bS, len(cellsS), cursorPos)
+    sF, eF, firstF, lastF = _charSpan(r2bF, len(cellsF), cursorPos)
+    if (firstS, lastS) != (firstF, lastF) or eS <= sS or eF <= sF:
+        return None
+    delta = (eF - sF) - (eS - sS)
+    cells = list(cellsS[:sS]) + list(cellsF[sF:eF]) + list(cellsS[eS:])
+    b2r = list(b2rS[:sS]) + list(b2rF[sF:eF]) + list(b2rS[eS:])
+    r2b = [p if p < sS else (p + delta if p >= eS else sS + (r2bF[i] - sF)) for i, p in enumerate(r2bS)]
+    cur = sS + (curF - sF) if curF is not None and sF <= curF < eF else sS
+    return cells, b2r, r2b, cur
+
+
+_origTranslate = None
+
+
+def _translate(tableList, inbuf, typeform=None, cursorPos=None, mode=0):
+    result = _origTranslate(tableList, inbuf, typeform=typeform, cursorPos=cursorPos, mode=mode)
+    try:
+        if cursorPos is None or not tableList or os.path.basename(tableList[0]) != SHORT_TABLE:
+            return result
+        if not config.conf["braille"]["expandAtCursor"]:
+            return result
+        text = str(inbuf).replace("\0", "")
+        if not 0 <= cursorPos < len(text) or not "㐀" <= text[cursorPos] <= "鿿":
+            return result
+        full = _origTranslate([FULL_TABLE] + list(tableList[1:]), inbuf, typeform=typeform, cursorPos=cursorPos, mode=mode)
+        return spliceCursorChar(result, full, cursorPos) or result
+    except Exception:
+        # NVDA 改版時內部介面可能不同：出錯就照原樣顯示，不讓點字輸出壞掉
+        log.debugWarning("brailleTableSwitcher: 縮點游標展開失敗", exc_info=True)
+        return result
+
+
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        global _origTranslate
+        _origTranslate = louisHelper.translate
+        louisHelper.translate = _translate
         # 啟動時背景自動檢查一次更新，延遲幾秒避免搶在 NVDA 啟動流程前面；有新版才提示，沒有則靜默
         wx.CallLater(5000, lambda: threading.Thread(
             target=_check_update_worker, kwargs={"silent": True}, daemon=True
@@ -248,6 +315,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             NVDASettingsDialog.categoryClasses.remove(BrailleTableSwitcherPanel)
         except ValueError:
             pass
+        if louisHelper.translate is _translate:
+            louisHelper.translate = _origTranslate
         super().terminate()
 
     # ── 開啟設定 (NVDA+Alt+P) ────────────────────────────────────────────
