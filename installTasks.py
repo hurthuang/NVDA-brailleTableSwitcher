@@ -2,7 +2,7 @@ from logHandler import log
 import config
 
 # 本附加元件附帶的輸出表；解除安裝後 NVDA 找不到這些表會退回「自動」（可能選到英文表），所以先切回注音點字
-ADDON_TABLES = ("zh-tw-ueb-g1.ctb", "zh-tw-ueb-g2.ctb", "zh-tw-short.ctb")
+ADDON_TABLES = ("zh-tw-ueb-g1.ctb", "zh-tw-ueb-g2.ctb", "zh-tw-short.ctb", "zh-tw-fix.ctb")
 
 
 def onUninstall():

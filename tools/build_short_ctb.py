@@ -8,14 +8,23 @@
 原表用 7／8 點區分的代名詞：他你她妳的聲母記號保留；牠祂的記號在韻母上，
 會跟聲調撞在一起，維持原表寫法（含調號方）。度量衡合字（瓩、兙等）也維持原樣。
 
+多音字修正：tools/zh-polyphone-rules.json（取自 vi-tools 文字轉點字的多音字補充規則，逐條以萌典查證）
+轉成整詞規則（noback always）加在表尾，蓋過 zh-tw.ctb 讀錯的地方（例：記得、值得的「得」是輕聲）。
+同一份修正也產生 brailleTables/zh-tw-fix.ctb（zh-tw.ctb＋完整寫法的修正），給游標所在字展開用，
+展開時看到的讀音才會和縮點一致。
+
 用法：python tools/build_short_ctb.py [zh-tw.ctb 路徑]
 """
+import json
 import os
 import re
 import sys
 
 SRC_DEFAULT = r"C:\Program Files\NVDA\louis\tables\zh-tw.ctb"
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "brailleTables", "zh-tw-short.ctb")
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, "..", "brailleTables", "zh-tw-short.ctb")
+OUT_FIX = os.path.join(HERE, "..", "brailleTables", "zh-tw-fix.ctb")
+POLYPHONE = os.path.join(HERE, "zh-polyphone-rules.json")
 
 INITIALS = {
 	"135", "1234", "134", "12345",  # ㄅㄆㄇㄈ
@@ -60,13 +69,55 @@ def convert(dots):
 	return "-".join(out)
 
 
+def syllables(dots):
+	"""把一串點位切成音節（聲母?-韻母-調號）；切不開傳回 None。"""
+	cells = dots.split("-")
+	out = []
+	i = 0
+	while i < len(cells):
+		base = cells[i].replace("7", "").replace("8", "")
+		ini = base in INITIALS and i + 2 < len(cells) and cells[i + 1] in FINALS
+		j = i + 1 if ini else i
+		if j + 1 >= len(cells) or cells[j] not in FINALS or cells[j + 1] not in TONES:
+			return None
+		out.append("-".join(cells[i:j + 2]))
+		i = j + 2
+	return out
+
+
+def polyphoneRules(letters):
+	"""多音字修正 → [(整詞, 完整點位)]。letters：國字 → zh-tw.ctb 的字表點位（保留代名詞的 7／8 點用）。"""
+	rules = []
+	for r in json.load(open(POLYPHONE, encoding="utf-8")):
+		text = r["text"]
+		dots = "-".join("".join(str(k + 1) for k in range(8) if (ord(c) - 0x2800) >> k & 1) or "0" for c in r["braille"])
+		syls = syllables(dots)
+		if not syls or len(syls) != len(text):
+			print("   略過（點字和字數對不上）：", text)
+			continue
+		for i, ch in enumerate(text):
+			# 補充規則是六點寫法；和字表只差 7／8 點（代名詞記號）時用字表的寫法
+			d = letters.get(ch)
+			if d and d.replace("7", "").replace("8", "") == syls[i]:
+				syls[i] = d
+		rules.append((text, "-".join(syls)))
+	return rules
+
+
+def esc(text):
+	return "".join(f"\\x{ord(c):04X}" for c in text)
+
+
 def main():
 	sys.stdout.reconfigure(encoding="utf-8")
 	src = sys.argv[1] if len(sys.argv) > 1 else SRC_DEFAULT
 	lines = open(src, encoding="utf-8").read().split("\n")
 	out, changed, failed = [], 0, []
+	letters = {}
 	for ln in lines:
 		toks = ln.split(" ")
+		if toks[0] == "letter" and len(toks) >= 3 and CJK.fullmatch(toks[1]):
+			letters.setdefault(chr(int(toks[1][2:], 16)), toks[2])
 		if ln.startswith("#-display-name:"):
 			ln = "#-display-name: Taiwanese bopomofo braille, short form (tones in dots 7-8)"
 		elif ln.startswith("#-name:"):
@@ -90,9 +141,21 @@ def main():
 		"# 縮點閱讀表：由 NVDA-brailleTableSwitcher/tools/build_short_ctb.py 從 zh-tw.ctb 產生，不要手動修改\n"
 		"# 一聲不標；二聲韻母加點7；三聲韻母加點7、8；四聲韻母加點8；輕聲聲母加點8；沒有聲母的一聲、輕聲字不縮\n"
 	)
+	rules = polyphoneRules(letters)
+	note = "# 多音字修正（tools/zh-polyphone-rules.json，取自 vi-tools 文字轉點字，萌典查證）：整詞規則蓋過原表的讀音"
+	short = [f"noback always {esc(t)} {convert(d)}" for t, d in rules]
 	with open(OUT, "w", encoding="utf-8", newline="\n") as f:
-		f.write(header + "\n".join(out))
-	print(f"轉換 {changed} 條，無法解析 {len(failed)} 條 → {os.path.normpath(OUT)}")
+		f.write(header + "\n".join(out) + "\n\n" + note + "\n" + "\n".join(short) + "\n")
+	with open(OUT_FIX, "w", encoding="utf-8", newline="\n") as f:
+		f.write(
+			"# 注音點字＋多音字修正：由 NVDA-brailleTableSwitcher/tools/build_short_ctb.py 產生，不要手動修改\n"
+			"# 給縮點閱讀的游標所在字展開用，展開時的讀音才會和縮點一致\n"
+			"#-index-name: Mandarin, Taiwan, bopomofo, polyphone fixes\n"
+			"#-display-name: Taiwanese bopomofo braille with polyphone fixes\n"
+			"include zh-tw.ctb\n\n" + note + "\n"
+			+ "\n".join(f"noback always {esc(t)} {d}" for t, d in rules) + "\n")
+	print(f"轉換 {changed} 條，無法解析 {len(failed)} 條，多音字修正 {len(rules)} 條 → {os.path.normpath(OUT)}")
+	print(f"完整寫法的多音字修正 → {os.path.normpath(OUT_FIX)}")
 	for ln in failed[:30]:
 		print("  ", ln)
 

@@ -8,6 +8,7 @@ import braille
 import brailleInput
 import config
 import globalPluginHandler
+import louis
 import louisHelper
 import ui
 import gui
@@ -28,6 +29,7 @@ GITHUB_LATEST_API = "https://api.github.com/repos/hurthuang/NVDA-brailleTableSwi
 # 推薦的輸出點字表（設定面板預設列出；NVDA+Alt+B 在勾選的表間循環）
 OUTPUT_TABLES = [
     ("zh-tw.ctb",          "注音點字 (zh-tw)"),
+    ("zh-tw-fix.ctb",      "注音點字（多音字修正）"),
     ("zh-tw-ueb-g1.ctb",   "注音點字 + UEB 一級"),
     ("zh-tw-ueb-g2.ctb",   "注音點字 + UEB 二級"),
     ("zh-tw-short.ctb",  "縮點閱讀"),
@@ -235,12 +237,17 @@ def _download_and_install_worker(asset_url):
 
 
 # ── 縮點閱讀：游標所在的國字顯示完整注音點字 ─────────────────────────────
-# NVDA 的「游標所在字詞展開成電腦點字」（liblouis compbrlAtCursor）對中文沒有作用：
-# 它只會展開成電腦點字，而且中文沒有空格分詞。這裡改成：輸出表是縮點閱讀、游標在國字上、
-# 那個設定有開時，把游標所在的那一個字換成 zh-tw.ctb 的寫法（帶調號方）。
-# 好處：逐字移動時能確認聲調；游標的第 7、8 點也不會和聲調混在一起。
+# NVDA 的「游標所在字詞展開成電腦點字」（liblouis compbrlAtCursor）用在中文有兩個問題：
+# 1. 中文沒有空格，游標所在的整段國字都被當成「游標所在字詞」改用電腦點字模式，這段裡的多音字
+#    前後文規則全部失效（長大的長變成 ㄔㄤˊ、銀行的行變成 ㄒㄧㄥˊ）。注音點字系列的表、游標在國字上時，
+#    轉譯前拿掉這個旗標（它對國字本來就沒有展開效果）。
+# 2. 縮點閱讀需要的是「游標所在的國字顯示完整注音點字」：輸出表是縮點閱讀、游標在國字上、設定有開時，
+#    把那一個字換成 zh-tw-fix.ctb（zh-tw.ctb＋同一份多音字修正）的寫法（帶調號方）。
+#    逐字移動時能確認聲調；游標的第 7、8 點也不會和聲調混在一起。
 SHORT_TABLE = "zh-tw-short.ctb"
-FULL_TABLE = "zh-tw.ctb"
+FULL_TABLE = "zh-tw-fix.ctb"
+ZH_TABLES = {"zh-tw.ctb", "zh-tw-ueb-g1.ctb", "zh-tw-ueb-g2.ctb", SHORT_TABLE, FULL_TABLE}
+COMPBRL_AT_CURSOR = getattr(louis, "compbrlAtCursor", 2)
 
 
 def _charSpan(rawToBraillePos, brailleLen, index):
@@ -277,19 +284,26 @@ def spliceCursorChar(short, full, cursorPos):
 
 
 _origTranslate = None
+_fullTableOk = True   # zh-tw-fix.ctb 載入失敗過就不再試，免得每次游標移動都記一筆錯誤
 
 
 def _translate(tableList, inbuf, typeform=None, cursorPos=None, mode=0):
+    try:
+        name = os.path.basename(tableList[0]) if tableList else ""
+        text = str(inbuf).replace("\0", "")
+        onCjk = cursorPos is not None and 0 <= cursorPos < len(text) and "\u3400" <= text[cursorPos] <= "\u9fff"
+    except Exception:
+        name, onCjk = "", False
+    if name in ZH_TABLES and onCjk:
+        mode &= ~COMPBRL_AT_CURSOR   # 見上方說明 1
     result = _origTranslate(tableList, inbuf, typeform=typeform, cursorPos=cursorPos, mode=mode)
     try:
-        if cursorPos is None or not tableList or os.path.basename(tableList[0]) != SHORT_TABLE:
+        global _fullTableOk
+        if name != SHORT_TABLE or not onCjk or not _fullTableOk or not config.conf["braille"]["expandAtCursor"]:
             return result
-        if not config.conf["braille"]["expandAtCursor"]:
-            return result
-        text = str(inbuf).replace("\0", "")
-        if not 0 <= cursorPos < len(text) or not "㐀" <= text[cursorPos] <= "鿿":
-            return result
+        _fullTableOk = False
         full = _origTranslate([FULL_TABLE] + list(tableList[1:]), inbuf, typeform=typeform, cursorPos=cursorPos, mode=mode)
+        _fullTableOk = True
         return spliceCursorChar(result, full, cursorPos) or result
     except Exception:
         # NVDA 改版時內部介面可能不同：出錯就照原樣顯示，不讓點字輸出壞掉
