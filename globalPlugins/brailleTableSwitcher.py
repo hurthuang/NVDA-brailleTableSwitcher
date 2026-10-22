@@ -238,9 +238,10 @@ def _download_and_install_worker(asset_url):
 
 # ── 縮點閱讀：游標所在的國字顯示完整注音點字 ─────────────────────────────
 # NVDA 的「游標所在字詞展開成電腦點字」（liblouis compbrlAtCursor）用在中文有兩個問題：
-# 1. 中文沒有空格，游標所在的整段國字都被當成「游標所在字詞」改用電腦點字模式，這段裡的多音字
-#    前後文規則全部失效（長大的長變成 ㄔㄤˊ、銀行的行變成 ㄒㄧㄥˊ）。注音點字系列的表、游標在國字上時，
-#    轉譯前拿掉這個旗標（它對國字本來就沒有展開效果）。
+# 1. liblouis 的「游標所在字詞」是游標前後連續、沒有空白的一整段；中文沒有空格，游標在國字上、句尾、
+#    緊鄰國字的標點或英文上時，整段國字都改用電腦點字模式，多音字規則全部失效（長大的長變成 ㄔㄤˊ、
+#    記得的得變回二聲）。注音點字系列的表、游標所在的那一段含國字時，轉譯前拿掉這個旗標
+#    （它對國字本來就沒有展開效果；整段都是英文時照常展開）。
 # 2. 縮點閱讀需要的是「游標所在的國字顯示完整注音點字」：輸出表是縮點閱讀、游標在國字上、設定有開時，
 #    把那一個字換成 zh-tw-fix.ctb（zh-tw.ctb＋同一份多音字修正）的寫法（帶調號方）。
 #    逐字移動時能確認聲調；游標的第 7、8 點也不會和聲調混在一起。
@@ -287,14 +288,29 @@ _origTranslate = None
 _fullTableOk = True   # zh-tw-fix.ctb 載入失敗過就不再試，免得每次游標移動都記一筆錯誤
 
 
+def _isCjk(ch):
+    return "\u3400" <= ch <= "\u9fff"
+
+
+def _cursorRunHasCjk(text, pos):
+    """游標前後連續、沒有空白的那一段（liblouis 的「游標所在字詞」）裡有沒有國字。"""
+    left = right = max(0, min(pos, len(text)))
+    while left > 0 and not text[left - 1].isspace():
+        left -= 1
+    while right < len(text) and not text[right].isspace():
+        right += 1
+    return any(_isCjk(c) for c in text[left:right])
+
+
 def _translate(tableList, inbuf, typeform=None, cursorPos=None, mode=0):
     try:
         name = os.path.basename(tableList[0]) if tableList else ""
         text = str(inbuf).replace("\0", "")
-        onCjk = cursorPos is not None and 0 <= cursorPos < len(text) and "\u3400" <= text[cursorPos] <= "\u9fff"
+        onCjk = cursorPos is not None and 0 <= cursorPos < len(text) and _isCjk(text[cursorPos])
+        runCjk = cursorPos is not None and _cursorRunHasCjk(text, cursorPos)
     except Exception:
-        name, onCjk = "", False
-    if name in ZH_TABLES and onCjk:
+        name, onCjk, runCjk = "", False, False
+    if name in ZH_TABLES and runCjk:
         mode &= ~COMPBRL_AT_CURSOR   # 見上方說明 1
     result = _origTranslate(tableList, inbuf, typeform=typeform, cursorPos=cursorPos, mode=mode)
     try:
