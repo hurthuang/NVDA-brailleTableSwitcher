@@ -25,6 +25,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "brailleTables", "zh-tw-short.ctb")
 OUT_FIX = os.path.join(HERE, "..", "brailleTables", "zh-tw-fix.ctb")
 POLYPHONE = os.path.join(HERE, "zh-polyphone-rules.json")
+# 標點：國語點字規範只有句號、問號、驚嘆號後面空一方；zh-tw.ctb 的逗號、頓號、分號後面也多了空方，這裡拿掉
+# （和 vi-tools 文字轉點字相同）
+NO_BLANK_AFTER = {"FF0C": "，", "3001": "、", "FF1B": "；"}
 
 INITIALS = {
 	"135", "1234", "134", "12345",  # ㄅㄆㄇㄈ
@@ -122,6 +125,9 @@ def main():
 			ln = "#-display-name: Taiwanese bopomofo braille, short form (tones in dots 7-8)"
 		elif ln.startswith("#-name:"):
 			ln = "#-name: Taiwan bopomofo short"
+		elif toks[0] == "punctuation" and len(toks) >= 3 and toks[1].upper() in tuple(chr(92) + "X" + k for k in NO_BLANK_AFTER):
+			toks[2] = re.sub(r"(-0)+$", "", toks[2])
+			ln, changed = " ".join(toks), changed + 1
 		elif CJK.search(ln) and toks[0] in ("letter", "word", "begword") and len(toks) >= 3:
 			new = convert(toks[2])
 			if new is None:
@@ -152,7 +158,10 @@ def main():
 			"# 給縮點閱讀的游標所在字展開用，展開時的讀音才會和縮點一致\n"
 			"#-index-name: Mandarin, Taiwan, bopomofo, polyphone fixes\n"
 			"#-display-name: Taiwanese bopomofo braille with polyphone fixes\n"
-			"include zh-tw.ctb\n\n" + note + "\n"
+			"include zh-tw.ctb\n\n"
+			"# 逗號、頓號、分號後面不空方（國語點字規範；字元定義以第一次為準，所以用整詞規則蓋過）\n"
+			+ "\n".join(f"noback always \\x{k} {d}" for k, d in (("FF0C", "23"), ("3001", "6"), ("FF1B", "56"))) + "\n\n"
+			+ note + "\n"
 			+ "\n".join(f"noback always {esc(t)} {d}" for t, d in rules) + "\n")
 	print(f"轉換 {changed} 條，無法解析 {len(failed)} 條，多音字修正 {len(rules)} 條 → {os.path.normpath(OUT)}")
 	print(f"完整寫法的多音字修正 → {os.path.normpath(OUT_FIX)}")

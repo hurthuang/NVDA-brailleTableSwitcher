@@ -4,6 +4,11 @@
 #-display-name: Taiwanese bopomofo braille with polyphone fixes
 include zh-tw.ctb
 
+# 逗號、頓號、分號後面不空方（國語點字規範；字元定義以第一次為準，所以用整詞規則蓋過）
+noback always \xFF0C 23
+noback always \x3001 6
+noback always \xFF1B 56
+
 # 多音字修正（tools/zh-polyphone-rules.json，取自 vi-tools 文字轉點字，萌典查證）：整詞規則蓋過原表的讀音
 noback always \x4E86\x4E0D\x5F97 14-246-4-135-34-5-145-2346-2
 noback always \x4E86\x5F97 14-246-4-145-2346-1

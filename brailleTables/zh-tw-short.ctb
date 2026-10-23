@@ -1658,7 +1658,7 @@ sign \x2FD5 236-5
 
 #begin CJK Symbols and Punctuation (U+3000-U+303F)
 space \x3000 0-0
-punctuation \x3001 6-0
+punctuation \x3001 6
 punctuation \x3002 36-0
 punctuation \x3003 6-3
 letter \x3007 14-13456-2
@@ -30541,7 +30541,7 @@ punctuation \xFF08 246-0
 punctuation \xFF09 135-0
 sign \xFF0A 16-0
 math \xFF0B 346-0
-punctuation \xFF0C 23-0
+punctuation \xFF0C 23
 punctuation \xFF0D 36-0
 punctuation \xFF0E 46-0
 sign \xFF0F 34-0
@@ -30556,7 +30556,7 @@ digit \xFF17 2356-0
 digit \xFF18 236-0
 digit \xFF19 35-0
 punctuation \xFF1A 25-25
-punctuation \xFF1B 56-0
+punctuation \xFF1B 56
 math \xFF1C 126-0
 math \xFF1D 123456-0
 math \xFF1E 345-0
