@@ -48,6 +48,7 @@ NVDA addon，讓使用者透過快速鍵在台灣中文點字表與 UEB 點字�
 - 修正 NVDA 的一個問題：NVDA 預設開啟「游標所在字詞展開成電腦點字」，在編輯區裡游標停在國字上時，那一段的多音字規則會全部失效（長大的長變成 ㄔㄤˊ、銀行的行變成 ㄒㄧㄥˊ）。注音點字系列的表（含 NVDA 內建的注音點字）在游標停在國字上時，不再進入電腦點字展開，多音字維持正確。
 - 游標所在的國字會顯示完整的注音點字（含調號方），逐字移動就能確認聲調，游標的第 7、8 點也不會和聲調混在一起。開關沿用 NVDA 點字設定的「游標所在字詞展開成電腦點字」。
 - 縮點閱讀是閱讀用的點字表；點字輸入的縮點模式請見[豪點輸入法（6d-IME）](https://github.com/hurthuang/6d-IME) v1.7 起。
+- 完整規則與對照：[縮點對照](https://hurthuang.github.io/vi-tools/zh-tw-short.html)（輸入文字逐行對照，和點顯器上看到的相同）、[縮點規則](https://github.com/hurthuang/zh-tw-short)。
 - 構想來源：[注音點字改良思考](https://class.kh.edu.tw/19061/bulletin/msg_view/197)（2018）；輸入的做法見 [縮點輸入法](https://class.kh.edu.tw/19061/bulletin/msg_view/497)（2020）。
 
 ## 安裝需求
