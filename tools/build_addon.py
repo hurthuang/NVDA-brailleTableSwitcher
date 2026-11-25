@@ -2,7 +2,7 @@
 """打包 brailleTableSwitcher-<版本>.nvda-addon（版本取自 manifest.ini）。
 
 用法：python tools/build_addon.py [輸出資料夾]   （預設輸出到 repo 根目錄）
-內容：manifest.ini、README.md、installTasks.py、globalPlugins/*.py、brailleTables/*.ctb
+內容：manifest.ini、README.md、LICENSE、installTasks.py、locale/zh_TW/manifest.ini、globalPlugins/*.py、brailleTables/*.ctb
 """
 import os
 import re
@@ -18,7 +18,7 @@ def main():
 	version = re.search(r'^version\s*=\s*"?([^"\n]+)"?', manifest, re.M).group(1).strip()
 	outDir = sys.argv[1] if len(sys.argv) > 1 else ROOT
 	out = os.path.join(outDir, f"brailleTableSwitcher-{version}.nvda-addon")
-	files = ["manifest.ini", "README.md", "installTasks.py"]
+	files = ["manifest.ini", "README.md", "LICENSE", "installTasks.py", "locale/zh_TW/manifest.ini"]
 	for sub, ext in (("globalPlugins", ".py"), ("brailleTables", ".ctb")):
 		files += [f"{sub}/{f}" for f in sorted(os.listdir(os.path.join(ROOT, sub))) if f.endswith(ext)]
 	with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:

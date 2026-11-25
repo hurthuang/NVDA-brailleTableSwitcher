@@ -18,6 +18,7 @@ import threading
 import urllib.request
 import urllib.error
 import json
+import os
 import re
 import os
 import tempfile
@@ -167,8 +168,19 @@ def _current_version():
         return "0"
 
 
+def _from_store():
+    """從 NVDA 附加元件商店安裝的，NVDA 會在 addons 資料夾放「<名稱>.json」；這時更新交給商店，不自己查 GitHub。"""
+    try:
+        return os.path.isfile(addonHandler.getCodeAddon().path + ".json")
+    except Exception:
+        return False
+
 def _check_update_worker(silent=False):
     """silent=True 用於開機自動檢查：沒有新版本時完全不提示，避免每次啟動都念一次。"""
+    if _from_store():
+        if not silent:
+            wx.CallAfter(ui.message, "這個附加元件是從 NVDA 附加元件商店安裝的，請到附加元件商店更新。")
+        return
     current = _current_version()
     try:
         req = urllib.request.Request(

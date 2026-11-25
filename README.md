@@ -70,4 +70,6 @@ NVDA addon，讓使用者透過快速鍵在台灣中文點字表與 UEB 點字�
 
 ## 授權
 
-GPL v2
+GPL v2，見 [LICENSE](LICENSE)。
+
+內附的 `zh-tw-short.ctb`、`zh-tw-ueb-g1.ctb`、`zh-tw-ueb-g2.ctb` 改自 liblouis 的 `zh-tw.ctb`（Coscell Kao、nvda-tw，LGPL-2.1 或更新版本），檔案開頭保留原授權聲明。
